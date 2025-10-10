@@ -25,5 +25,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/kartu/", views.ls_kartu, name="ls_kartu"),
     path("api/kartu/<int:kartu_id>/", views.detail_kartu, name="detail_kartu"),
-    path("api/generate/", views.generate_story, name="generate_story"),
+    # path("api/generate/", views.generate_story, name="generate_story"),
 ]

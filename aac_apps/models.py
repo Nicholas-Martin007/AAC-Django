@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Kartu(models.Model):
     kartu_id = models.AutoField(primary_key=True)
     label = models.CharField(max_length=100)
@@ -10,16 +11,20 @@ class Kartu(models.Model):
         return self.label
 
     def to_json(self):
-        return {"kartu_id": self.kartu_id, "label": self.label, "gambar": self.gambar, "kategori": self.kategori,}
+        return {
+            "kartu_id": self.kartu_id,
+            "label": self.label,
+            "gambar": self.gambar,
+            "kategori": self.kategori,
+        }
 
     @classmethod
     def from_json(cls, data):
         return cls(
             label=data.get("label"),
             gambar=data.get("gambar"),
-            kategori=data.get("kategori", "default"), 
+            kategori=data.get("kategori", "default"),
         )
-
 
 
 class KisahSosial(models.Model):
@@ -38,6 +43,7 @@ class KisahSosial(models.Model):
 class KartuKisah(models.Model):
     kartu = models.ForeignKey(Kartu, on_delete=models.CASCADE)
     kisah = models.ForeignKey(KisahSosial, on_delete=models.CASCADE)
+    order = models.IntegerField(default=0)
 
-    class Meta:
-        unique_together = ("kartu", "kisah")
+    # class Meta:
+    #     unique_together = ("kartu", "kisah")

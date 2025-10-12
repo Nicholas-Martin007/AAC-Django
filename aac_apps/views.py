@@ -2,15 +2,17 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
 import json
+
 # import torch
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
 # from transformers import AutoModelForCausalLM
 # from peft import PeftModelForCausalLM
-from aac_apps.models import Kartu
+from aac_apps.models import Kartu, KisahSosial, KartuKisah
+
+
 # from .tokenizer import FinetuneTokenizer
-
-
 @csrf_exempt
 def ls_kartu(request):
     if request.method == "GET":
@@ -26,10 +28,39 @@ def ls_kartu(request):
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON"}, status=400)
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)  
+            return JsonResponse({"error": str(e)}, status=400)
 
 
 @csrf_exempt
+def ls_kisah(request):
+    try:
+        if request.method != "GET":
+            return Response({"error": "Method not allowed"}, status=405)
+
+        print("Fetching all KisahSosial entries")
+        kisah_list = KisahSosial.objects.all().order_by("-created_at")
+
+        response_data = []
+        for kisah in kisah_list:
+            kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
+
+            kisah_data = {
+                "kisah_id": kisah.kisah_id,
+                "input_text": kisah.input_text,
+                "output_text": kisah.output_text,
+                "created_at": kisah.created_at.isoformat(),
+                "kartu_ids": list(kartu_ids),
+                "score_human": kisah.score_human,
+                "score_perplexity": kisah.score_perplexity,
+            }
+            response_data.append(kisah_data)
+
+        return JsonResponse(response_data, safe=False)
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
 def detail_kartu(request, kartu_id):
     try:
         kartu = Kartu.objects.get(kartu_id=kartu_id)
@@ -37,6 +68,7 @@ def detail_kartu(request, kartu_id):
             return JsonResponse(kartu.to_json())
 
         elif request.method == "DELETE":
+            print("Deleting kartu with ID:", kartu_id)
             kartu.delete()
             return JsonResponse({"message": "Kartu deleted successfully"})
 
@@ -52,6 +84,85 @@ def detail_kartu(request, kartu_id):
         return JsonResponse({"error": "Kartu not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@csrf_exempt
+def detail_kisah(request, kisah_id):
+    try:
+        kisah = KisahSosial.objects.get(kisah_id=kisah_id)
+        kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
+
+        response_data = {
+            "kisah_id": kisah.kisah_id,
+            "input_text": kisah.input_text,
+            "output_text": kisah.output_text,
+            "created_at": kisah.created_at.isoformat(),
+            "kartu_ids": list(kartu_ids),
+            "score_human": kisah.score_human,
+            "score_perplexity": kisah.score_perplexity,
+        }
+
+        return Response(response_data)
+
+    except KisahSosial.DoesNotExist:
+        return Response({"error": "Kisah not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
+
+
+@api_view(["POST"])
+def generate_story(request):
+    try:
+        data = request.data
+        print("Received data:", data)
+
+        kartu_ids = data.get("kartu_ids", [])
+        if not kartu_ids:
+            return Response({"error": "kartu_ids is required"}, status=400)
+
+        # Get all kartu objects, keep duplicates manually
+        kartus = []
+        for kartu_id in kartu_ids:
+            try:
+                kartu = Kartu.objects.get(kartu_id=kartu_id)
+                kartus.append(kartu)
+            except Kartu.DoesNotExist:
+                return Response(
+                    {"error": f"Kartu with id {kartu_id} not found"}, status=404
+                )
+
+        # Build input text from labels (with duplicates)
+        input_labels = [kartu.label for kartu in kartus]
+        input_text = ", ".join(input_labels)
+
+        # Example generated story (replace with your generation logic)
+        generated_story = f"Cerita berdasarkan kartu: {input_text}"
+
+        # Create KisahSosial
+        kisah = KisahSosial.objects.create(
+            input_text=input_text,
+            output_text=generated_story,
+            score_human=0.0,
+            score_perplexity=0.0,
+        )
+
+        # Save each kartu (including duplicates)
+        for kartu in kartus:
+            KartuKisah.objects.create(kartu=kartu, kisah=kisah)
+
+        response_data = {
+            "kisah_id": kisah.kisah_id,
+            "input_text": kisah.input_text,
+            "output_text": kisah.output_text,
+            "created_at": kisah.created_at.isoformat(),
+            "kartu_ids": kartu_ids,  # preserve duplicates
+        }
+
+        print("Response data:", response_data)
+        return Response(response_data, status=201)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)
 
 
 # MODEL_PATH = "/Users/Nicmar/Downloads/_QLoRA_proof/"

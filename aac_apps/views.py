@@ -61,6 +61,7 @@ def ls_kisah(request):
         return JsonResponse({"error": str(e)}, status=400)
 
 
+@csrf_exempt
 def detail_kartu(request, kartu_id):
     try:
         kartu = Kartu.objects.get(kartu_id=kartu_id)
@@ -85,29 +86,42 @@ def detail_kartu(request, kartu_id):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-
 @csrf_exempt
 def detail_kisah(request, kisah_id):
     try:
         kisah = KisahSosial.objects.get(kisah_id=kisah_id)
-        kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
 
-        response_data = {
-            "kisah_id": kisah.kisah_id,
-            "input_text": kisah.input_text,
-            "output_text": kisah.output_text,
-            "created_at": kisah.created_at.isoformat(),
-            "kartu_ids": list(kartu_ids),
-            "score_human": kisah.score_human,
-            "score_perplexity": kisah.score_perplexity,
-        }
+        if request.method == "PUT":
+            data = json.loads(request.body)
+            print(data)
+            if "ratings" in data:
+                kisah.score_human = data["ratings"]
+                kisah.save()
+                return JsonResponse({"message": "Ratings updated successfully"})
 
-        return Response(response_data)
+            return JsonResponse({"error": "No ratings field provided"}, status=400)
+
+        elif request.method == "GET":
+            kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
+            response_data = {
+                "kisah_id": kisah.kisah_id,
+                "input_text": kisah.input_text,
+                "output_text": kisah.output_text,
+                "created_at": kisah.created_at.isoformat(),
+                "kartu_ids": list(kartu_ids),
+                "score_human": kisah.score_human,
+                "score_perplexity": kisah.score_perplexity,
+            }
+            return JsonResponse(response_data)
+
+        else:
+            return JsonResponse({"error": "Method not allowed"  }, status=405)
 
     except KisahSosial.DoesNotExist:
-        return Response({"error": "Kisah not found"}, status=404)
+        return JsonResponse({"error": "Kisah not found"}, status=404)
     except Exception as e:
-        return Response({"error": str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=400)
+
 
 
 @api_view(["POST"])

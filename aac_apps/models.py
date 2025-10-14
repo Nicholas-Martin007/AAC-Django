@@ -6,6 +6,7 @@ class Kartu(models.Model):
     label = models.CharField(max_length=100)
     gambar = models.TextField()
     kategori = models.TextField(default="default")
+    flag = models.BooleanField(default=False)
 
     def __str__(self):
         return self.label
@@ -16,6 +17,7 @@ class Kartu(models.Model):
             "label": self.label,
             "gambar": self.gambar,
             "kategori": self.kategori,
+            "flag": self.flag,
         }
 
     @classmethod
@@ -24,6 +26,7 @@ class Kartu(models.Model):
             label=data.get("label"),
             gambar=data.get("gambar"),
             kategori=data.get("kategori", "default"),
+            flag=data.get("flag", False),
         )
 
 

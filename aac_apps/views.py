@@ -2,22 +2,17 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ObjectDoesNotExist
 import json
-
-# import torch
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
-# from transformers import AutoModelForCausalLM
-# from peft import PeftModelForCausalLM
 from aac_apps.models import Kartu, KisahSosial, KartuKisah
 
 
-# from .tokenizer import FinetuneTokenizer
 @csrf_exempt
 def ls_kartu(request):
     if request.method == "GET":
-        ls_kartu = Kartu.objects.all()
-        return JsonResponse([kartu.to_json() for kartu in ls_kartu], safe=False)
+        # Show only active (non-flagged) cards
+        ls_kartu = Kartu.objects.filter(flag=False)
+        return JsonResponse([k.to_json() for k in ls_kartu], safe=False)
 
     elif request.method == "POST":
         try:
@@ -32,78 +27,68 @@ def ls_kartu(request):
 
 
 @csrf_exempt
-def ls_kisah(request):
-    try:
-        if request.method != "GET":
-            return Response({"error": "Method not allowed"}, status=405)
-
-        print("Fetching all KisahSosial entries")
-        kisah_list = KisahSosial.objects.all().order_by("-created_at")
-
-        response_data = []
-        for kisah in kisah_list:
-            kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
-
-            kisah_data = {
-                "kisah_id": kisah.kisah_id,
-                "input_text": kisah.input_text,
-                "output_text": kisah.output_text,
-                "created_at": kisah.created_at.isoformat(),
-                "kartu_ids": list(kartu_ids),
-                "score_human": kisah.score_human,
-                "score_perplexity": kisah.score_perplexity,
-            }
-            response_data.append(kisah_data)
-
-        return JsonResponse(response_data, safe=False)
-
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
-
-
-@csrf_exempt
 def detail_kartu(request, kartu_id):
     try:
         kartu = Kartu.objects.get(kartu_id=kartu_id)
+
         if request.method == "GET":
             return JsonResponse(kartu.to_json())
-
-        elif request.method == "DELETE":
-            print("Deleting kartu with ID:", kartu_id)
-            kartu.delete()
-            return JsonResponse({"message": "Kartu deleted successfully"})
 
         elif request.method == "PUT":
             data = json.loads(request.body)
             kartu.label = data.get("label", kartu.label)
             kartu.gambar = data.get("gambar", kartu.gambar)
             kartu.kategori = data.get("kategori", kartu.kategori)
+            kartu.flag = data.get("flag", kartu.flag)
             kartu.save()
             return JsonResponse(kartu.to_json())
+
+        elif request.method == "DELETE":
+            # soft delete
+            kartu.flag = True
+            kartu.save()
+            return JsonResponse({"message": "Kartu flagged for deletion"})
+
+        else:
+            return JsonResponse({"error": "Method not allowed"}, status=405)
 
     except ObjectDoesNotExist:
         return JsonResponse({"error": "Kartu not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
+
+@csrf_exempt
+def ls_kisah(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    try:
+        kisah_list = KisahSosial.objects.all().order_by("-created_at")
+        response = []
+        for k in kisah_list:
+            kartu_ids = k.kartu.all().values_list("kartu_id", flat=True)
+            response.append({
+                "kisah_id": k.kisah_id,
+                "input_text": k.input_text,
+                "output_text": k.output_text,
+                "created_at": k.created_at.isoformat(),
+                "kartu_ids": list(kartu_ids),
+                "score_human": k.score_human,
+                "score_perplexity": k.score_perplexity,
+            })
+        return JsonResponse(response, safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
 @csrf_exempt
 def detail_kisah(request, kisah_id):
     try:
         kisah = KisahSosial.objects.get(kisah_id=kisah_id)
 
-        if request.method == "PUT":
-            data = json.loads(request.body)
-            print(data)
-            if "ratings" in data:
-                kisah.score_human = data["ratings"]
-                kisah.save()
-                return JsonResponse({"message": "Ratings updated successfully"})
-
-            return JsonResponse({"error": "No ratings field provided"}, status=400)
-
-        elif request.method == "GET":
+        if request.method == "GET":
             kartu_ids = kisah.kartu.all().values_list("kartu_id", flat=True)
-            response_data = {
+            return JsonResponse({
                 "kisah_id": kisah.kisah_id,
                 "input_text": kisah.input_text,
                 "output_text": kisah.output_text,
@@ -111,11 +96,18 @@ def detail_kisah(request, kisah_id):
                 "kartu_ids": list(kartu_ids),
                 "score_human": kisah.score_human,
                 "score_perplexity": kisah.score_perplexity,
-            }
-            return JsonResponse(response_data)
+            })
+
+        elif request.method == "PUT":
+            data = json.loads(request.body)
+            if "ratings" in data:
+                kisah.score_human = data["ratings"]
+                kisah.save()
+                return JsonResponse({"message": "Ratings updated successfully"})
+            return JsonResponse({"error": "No ratings field provided"}, status=400)
 
         else:
-            return JsonResponse({"error": "Method not allowed"  }, status=405)
+            return JsonResponse({"error": "Method nFot allowed"}, status=405)
 
     except KisahSosial.DoesNotExist:
         return JsonResponse({"error": "Kisah not found"}, status=404)
@@ -123,36 +115,26 @@ def detail_kisah(request, kisah_id):
         return JsonResponse({"error": str(e)}, status=400)
 
 
-
 @api_view(["POST"])
 def generate_story(request):
     try:
         data = request.data
-        print("Received data:", data)
-
         kartu_ids = data.get("kartu_ids", [])
         if not kartu_ids:
             return Response({"error": "kartu_ids is required"}, status=400)
 
-        # Get all kartu objects, keep duplicates manually
         kartus = []
-        for kartu_id in kartu_ids:
+        for k_id in kartu_ids:
             try:
-                kartu = Kartu.objects.get(kartu_id=kartu_id)
-                kartus.append(kartu)
+                k = Kartu.objects.get(kartu_id=k_id)
+                kartus.append(k)
             except Kartu.DoesNotExist:
-                return Response(
-                    {"error": f"Kartu with id {kartu_id} not found"}, status=404
-                )
+                return Response({"error": f"Kartu with id {k_id} not found"}, status=404)
 
-        # Build input text from labels (with duplicates)
-        input_labels = [kartu.label for kartu in kartus]
+        input_labels = [k.label for k in kartus]
         input_text = ", ".join(input_labels)
-
-        # Example generated story (replace with your generation logic)
         generated_story = f"Cerita berdasarkan kartu: {input_text}"
 
-        # Create KisahSosial
         kisah = KisahSosial.objects.create(
             input_text=input_text,
             output_text=generated_story,
@@ -160,23 +142,28 @@ def generate_story(request):
             score_perplexity=0.0,
         )
 
-        # Save each kartu (including duplicates)
-        for kartu in kartus:
-            KartuKisah.objects.create(kartu=kartu, kisah=kisah)
+        for idx, k in enumerate(kartus):
+            KartuKisah.objects.create(kartu=k, kisah=kisah, order=idx)
 
         response_data = {
             "kisah_id": kisah.kisah_id,
             "input_text": kisah.input_text,
             "output_text": kisah.output_text,
             "created_at": kisah.created_at.isoformat(),
-            "kartu_ids": kartu_ids,  # preserve duplicates
+            "kartu_ids": kartu_ids,
         }
 
-        print("Response data:", response_data)
         return Response(response_data, status=201)
 
     except Exception as e:
         return Response({"error": str(e)}, status=400)
+
+@csrf_exempt
+def all_kartu(request):
+    if request.method == "GET":
+        ls_kartu = Kartu.objects.all()
+        return JsonResponse([k.to_json() for k in ls_kartu], safe=False)
+
 
 
 # MODEL_PATH = "/Users/Nicmar/Downloads/_QLoRA_proof/"

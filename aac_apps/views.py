@@ -5,23 +5,29 @@ import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from aac_apps.models import Kartu, KisahSosial, KartuKisah
-# import torch
-# from transformers import AutoModelForCausalLM, AutoTokenizer
-# from peft import PeftModelForCausalLM
-# from aac_apps.tokenizer import FinetuneTokenizer
-# import math
-# from torch.nn import CrossEntropyLoss
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModelForCausalLM, PeftModelForSeq2SeqLM
+
+from fine_tuned.f_model import FinetuneModel
+from fine_tuned.f_tokenizer import FinetuneTokenizer
+from fine_tuned.setup import load_model
+
+import math
+from torch.nn import CrossEntropyLoss
+from transformers import EncoderDecoderCache
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# MODEL_PATH = "/Users/Nicmar/Documents/coding/LLM QLORA/llama_downloads/llama3_2-3b_lr1_4421754150410843e-05_wd0_02_r48_a96_ep1_bs1"
-# BASE_MODEL = "meta-llama/Llama-3.2-3B-Instruct"
-# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# INIT MODEL
 
-# tokenizer = FinetuneTokenizer(BASE_MODEL).get_tokenizer()
-# base_model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
-# base_model.resize_token_embeddings(len(tokenizer))
-# qlora_model = PeftModelForCausalLM.from_pretrained(base_model, MODEL_PATH)
-# model = qlora_model.merge_and_unload().to(DEVICE)
+model_name = "flan"
+experiment = 1
+tokenizer, model = load_model(
+    model_name=model_name,
+    experiment=experiment,
+)
 
 
 @csrf_exempt
@@ -147,6 +153,8 @@ def generate_story(request):
     try:
         data = request.data
         kartu_ids = data.get("kartu_ids", [])
+        print(f"kartu id: {kartu_ids}")
+
         if not kartu_ids:
             return Response({"error": "Kartu diperlukan"}, status=400)
 
@@ -156,17 +164,62 @@ def generate_story(request):
                 k = Kartu.objects.get(kartu_id=k_id)
                 kartus.append(k)
             except Kartu.DoesNotExist:
-                return Response({"error": f"Kartu with id {k_id} not found"}, status=404)
+                return Response(
+                    {"error": f"Kartu with id {k_id} not found"}, status=404
+                )
 
-        input_labels = [k.label for k in kartus]
-        input_text = ", ".join(input_labels)
-        generated_story = f"Cerita berdasarkan kartu: {input_text}"
+        input_labels = [str(k.label).lower() for k in kartus]
+        input_list = input_labels
+
+        if "flan" in model_name:
+            prompt = ", ".join(input_list)  # buat toString()
+
+        else:
+            prompt = tokenizer.apply_chat_template(
+                [
+                    {
+                        "role": "user",
+                        "content": json.dumps(input_list),
+                    },
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+
+        print(f"Prompt: {prompt}")
+        input_ids = tokenizer(prompt, return_tensors="pt", padding=True).input_ids.to(
+            DEVICE
+        )
+        input_len = input_ids.shape[1]
+
+        output = model.generate(
+            input_ids=input_ids,
+            max_new_tokens=512,
+            temperature=0.8,
+            top_p=0.9,
+            do_sample=True,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+            return_dict_in_generate=True,
+            output_scores=True,
+        )
+
+        story = tokenizer.decode(
+            output.sequences[0][input_len:], skip_special_tokens=True
+        )
+
+        encodings = tokenizer(story, return_tensors="pt").to(DEVICE)
+
+        with torch.no_grad():
+            outputs = model(**encodings, labels=encodings["input_ids"])
+            loss = outputs.loss
+        perplexity = math.exp(loss.item())
 
         kisah = KisahSosial.objects.create(
-            input_text=input_text,
-            output_text=generated_story,
+            input_text=", ".join(input_labels),
+            output_text=story,
             score_human=0.0,
-            score_perplexity=0.0,
+            score_perplexity=perplexity,
         )
 
         for idx, k in enumerate(kartus):
@@ -176,10 +229,9 @@ def generate_story(request):
             "kisah_id": kisah.kisah_id,
             "input_text": kisah.input_text,
             "output_text": kisah.output_text,
+            "score_perplexity": round(perplexity, 4),
             "created_at": kisah.created_at.isoformat(),
             "kartu_ids": kartu_ids,
-            "score_human":kisah.score_human,
-            "score_perplexity":kisah.score_perplexity,
         }
 
         return Response(response_data, status=201)
@@ -187,87 +239,17 @@ def generate_story(request):
     except Exception as e:
         return Response({"error": str(e)}, status=400)
 
-# @api_view(["POST"])
-# def generate_story(request):
-#     try:
-#         data = request.data
-#         kartu_ids = data.get("kartu_ids", [])
-#         print(f"kartu id: {kartu_ids}")
-
-#         if not kartu_ids:
-#             return Response({"error": "Kartu diperlukan"}, status=400)
-
-#         kartus = []
-#         for k_id in kartu_ids:
-#             try:
-#                 k = Kartu.objects.get(kartu_id=k_id)
-#                 kartus.append(k)
-#             except Kartu.DoesNotExist:
-#                 return Response(
-#                     {"error": f"Kartu with id {k_id} not found"}, status=404
-#                 )
-
-#         input_labels = [str(k.label).lower() for k in kartus]
-#         input_list = input_labels
-
-#         prompt = tokenizer.apply_chat_template(
-#             [{"role": "user", "content": json.dumps(input_list)}],
-#             tokenize=False,
-#             add_generation_prompt=True,
-#         )
-
-#         print(f"Promptnya begini: {prompt}")  # Also fixed this
-#         input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(DEVICE)
-
-#         output = model.generate(
-#             input_ids=input_ids,
-#             max_new_tokens=512,
-#             temperature=0.8,
-#             top_p=0.9,
-#             do_sample=True,
-#             eos_token_id=tokenizer.eos_token_id,
-#             pad_token_id=tokenizer.pad_token_id,
-#             return_dict_in_generate=True,
-#             output_scores=True,
-#         )
-
-#         story = tokenizer.decode(
-#             output.sequences[0][input_ids.shape[1] :], skip_special_tokens=True
-#         )
-
-#         encodings = tokenizer(story, return_tensors="pt").to(DEVICE)
-#         with torch.no_grad():
-#             outputs = model(**encodings, labels=encodings["input_ids"])
-#             loss = outputs.loss
-#         perplexity = math.exp(loss.item())
-
-#         kisah = KisahSosial.objects.create(
-#             input_text=", ".join(input_labels),
-#             output_text=story,
-#             score_human=0.0,
-#             score_perplexity=perplexity,
-#         )
-
-#         for idx, k in enumerate(kartus):
-#             KartuKisah.objects.create(kartu=k, kisah=kisah, order=idx)
-
-#         response_data = {
-#             "kisah_id": kisah.kisah_id,
-#             "input_text": kisah.input_text,
-#             "output_text": kisah.output_text,
-#             "score_perplexity": round(perplexity, 4),
-#             "created_at": kisah.created_at.isoformat(),
-#             "kartu_ids": kartu_ids,
-#         }
-
-#         return Response(response_data, status=201)
-
-#     except Exception as e:
-#         return Response({"error": str(e)}, status=400)
-
 
 @csrf_exempt
 def all_kartu(request):
     if request.method == "GET":
         ls_kartu = Kartu.objects.all()
         return JsonResponse([k.to_json() for k in ls_kartu], safe=False)
+
+
+# untuk melakukan proses flan-t5, dibutuhkan upgrade version
+# pip install -U transformers peft accelerate bitsandbytes
+
+
+# kalau llama dan mistral dan lainnya bisa pakai versi lama
+# pip install transformers==4.53.2 peft==0.17.1 accelerate==1.10.1 bitsandbytes==0.47.0

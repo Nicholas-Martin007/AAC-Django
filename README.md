@@ -44,7 +44,6 @@ Backend server akan berjalan secara default pada:
 http://127.0.0.1:8000/ atau http://localhost:3000/
 ```
 
-
 ---
 
 ## 📦 Persyaratan Khusus
@@ -65,3 +64,10 @@ pip install -U transformers peft accelerate bitsandbytes
 pip install transformers==4.53.2 peft==0.17.1 accelerate==1.10.1 bitsandbytes==0.47.0
 ```
 
+---
+
+## 📘 Manual Book
+
+Panduan penggunaan sistem secara lengkap dapat dilihat pada file berikut:
+
+- **Manual Book**: `535220027_Manual Book.pdf`

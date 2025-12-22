@@ -42,7 +42,11 @@ def get_model_path(model_name, experiment):
     return model_path, qlora_model_path
 
 
-def load_model(model_name="llama", experiment=2, quantized_version=False):
+def load_model(
+    model_name="llama",
+    experiment=2,
+    quantized_version=False,
+):
     model_path, qlora_model_path = get_model_path(model_name, experiment)
 
     tokenizer = FinetuneTokenizer(
@@ -54,6 +58,7 @@ def load_model(model_name="llama", experiment=2, quantized_version=False):
     else:
         model_type = "causal"
 
+    # BASE MODEL
     f_model = FinetuneModel(
         tokenizer=tokenizer,
         model_path=model_path,
@@ -62,6 +67,7 @@ def load_model(model_name="llama", experiment=2, quantized_version=False):
         quantized_version=quantized_version,
     )
 
+    # QLORA
     qlora_model = PeftModelForCausalLM.from_pretrained(
         f_model.model,
         qlora_model_path,

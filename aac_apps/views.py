@@ -22,11 +22,12 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # INIT MODEL
 
-model_name = "flan"
-experiment = 1
+model_name = "llama"
+experiment = 2
 tokenizer, model = load_model(
     model_name=model_name,
     experiment=experiment,
+    # quantized_version=True,
 )
 
 

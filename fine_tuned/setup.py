@@ -25,19 +25,19 @@ def get_model_path(model_name, experiment):
         else:
             qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V2_QLoRA\llama_downloads\llama3_2-3b_lr0_00034608371233975127_wd0_0_r32_a16_ep2_bs2"
 
-    elif model_name == "mistral":
-        model_path = MODEL_PATH["mistral7b"]
-        if experiment == 1:
-            qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V1_QLoRA\mistral_downloads\mistral7b_lr0_00015079044135156433_wd0_1_r64_a128_ep1_bs2"
-        else:
-            qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V2_QLoRA\mistral_downloads\mistral7b_lr0_00031777491797078413_wd0_04_r16_a8_ep2_bs4"
+    # elif model_name == "mistral":
+    #     model_path = MODEL_PATH["mistral7b"]
+    #     if experiment == 1:
+    #         qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V1_QLoRA\mistral_downloads\mistral7b_lr0_00015079044135156433_wd0_1_r64_a128_ep1_bs2"
+    #     else:
+    #         qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V2_QLoRA\mistral_downloads\mistral7b_lr0_00031777491797078413_wd0_04_r16_a8_ep2_bs4"
 
-    else:
-        model_path = MODEL_PATH["flan-large"]
-        if experiment == 1:
-            qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V1_QLoRA\flan-t5_downloads\flan-large_lr0_0001482178201997769_wd0_09_r32_a16_ep1_bs4"
-        else:
-            qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V2_QLoRA\flan-t5_downloads\flan-large_lr7_789020928835203e-05_wd0_07_r16_a32_ep2_bs4"
+    # else:
+    #     model_path = MODEL_PATH["flan-large"]
+    #     if experiment == 1:
+    #         qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V1_QLoRA\flan-t5_downloads\flan-large_lr0_0001482178201997769_wd0_09_r32_a16_ep1_bs4"
+    #     else:
+    #         qlora_model_path = r"C:\Users\Nicmar\Documents\coding\QLoRA_Model\V2_QLoRA\flan-t5_downloads\flan-large_lr7_789020928835203e-05_wd0_07_r16_a32_ep2_bs4"
 
     return model_path, qlora_model_path
 

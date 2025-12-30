@@ -1,7 +1,14 @@
 # Backend LLM Django
 
-Repository ini digunakan untuk menjalankan **backend Django** yang terintegrasi dengan **Large Language Model (LLM)**.
+Repository ini digunakan untuk menjalankan **backend Django** yang terintegrasi dengan **Large Language Model (LLM)** sebagai pendukung **aplikasi AAC (Augmentative and Alternative Communication)**.
 
+Untuk mendapatkan aplikasi AAC secara lengkap:
+
+Frontend (React JS): https://github.com/Nicholas-Martin007/AAC-React
+
+Fine-Tuning Model LLM: https://github.com/Nicholas-Martin007/AAC-Story-Generation
+
+Backend ini dirancang untuk menangani proses inferensi model LLM dan manajemen API secara terstruktur, dengan dukungan GPU untuk performa optimal.
 ---
 
 ## 🖥️ Persyaratan Sistem
